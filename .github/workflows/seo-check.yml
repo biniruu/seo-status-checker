@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 저장소 체크아웃
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 리포트 출력 폴더 준비
         run: |
@@ -34,14 +34,14 @@ jobs:
         run: ls -lh output/
 
       - name: 리포트를 실행 기록에 보관 (Artifacts)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: seo-report
           path: output/*.xlsx
           if-no-files-found: error
 
       - name: 리포트 이메일 발송
-        uses: dawidd6/action-send-mail@v9
+        uses: dawidd6/action-send-mail@v18
         with:
           server_address: smtp.gmail.com
           server_port: 465
