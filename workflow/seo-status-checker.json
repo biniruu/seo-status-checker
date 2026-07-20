@@ -1,0 +1,332 @@
+{
+  "name": "SEO status checker (expanded)",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { url: \"https://www.wikipedia.org/\" } },\n  { json: { url: \"https://developer.mozilla.org/\" } }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "ef634236-9eee-467b-9b35-5ba9049eb788",
+      "name": "점검할 URL 목록"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "SEOCheckPractice/1.0 (job-portfolio project; contact: biniruu@gmail.com)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "04d6e194-9755-4375-8774-e9237ceb92d2",
+      "name": "HTML 크롤링"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "title"
+            },
+            {
+              "key": "description",
+              "cssSelector": "meta[name=\"description\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "canonical",
+              "cssSelector": "link[rel=\"canonical\"]",
+              "returnValue": "attribute",
+              "attribute": "href"
+            },
+            {
+              "key": "robots",
+              "cssSelector": "meta[name=\"robots\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "ogTitle",
+              "cssSelector": "meta[property=\"og:title\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "ogImage",
+              "cssSelector": "meta[property=\"og:image\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "837815a9-6972-40b6-b4e5-a88c51f258a2",
+      "name": "메타태그 추출"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 이 노드는 페이지(아이템) 하나마다 한 번씩 실행된다.\n// $json = 앞 HTML 노드가 뽑아준 이 페이지의 태그 값들\nconst d = $json;\n\n// 값이 있는지, 문자열 길이는 얼마인지 재는 작은 도우미\nconst len = (v) => (v ? String(v).trim().length : 0);\nconst has = (v) => len(v) > 0;\n\n// 점검 항목별로 상태(OK / 경고 / 문제)를 판정한다\nconst checks = {\n  title: !has(d.title) ? \"문제: title 없음\"\n       : (len(d.title) < 15 || len(d.title) > 60) ? `경고: title 길이 ${len(d.title)}자(권장 15~60)`\n       : \"OK\",\n\n  description: !has(d.description) ? \"문제: description 없음\"\n       : (len(d.description) < 70 || len(d.description) > 160) ? `경고: description 길이 ${len(d.description)}자(권장 70~160)`\n       : \"OK\",\n\n  canonical: has(d.canonical) ? \"OK\" : \"경고: canonical 없음\",\n\n  // robots에 noindex가 들어가면 검색에서 빠진다 — 실수로 배포되면 치명적\n  robots: (d.robots && /noindex/i.test(d.robots)) ? \"문제: noindex 설정됨\"\n        : \"OK\",\n\n  ogTitle: has(d.ogTitle) ? \"OK\" : \"경고: og:title 없음\",\n  ogImage: has(d.ogImage) ? \"OK\" : \"경고: og:image 없음\",\n};\n\n// 문제/경고 개수를 세서 한눈에 보이는 요약을 만든다\nconst values = Object.values(checks);\nconst problems = values.filter(v => v.startsWith(\"문제\")).length;\nconst warnings = values.filter(v => v.startsWith(\"경고\")).length;\nconst summary = problems > 0 ? `문제 ${problems}건` : warnings > 0 ? `경고 ${warnings}건` : \"정상\";\n\n// 엑셀 한 줄이 될 최종 결과. 리포트에 담길 컬럼들이다.\nreturn {\n  json: {\n    점검일시: new Date().toISOString().slice(0, 16).replace(\"T\", \" \"),\n    URL: d.url || $(\"점검할 URL 목록\").item.json.url || \"\",\n    요약: summary,\n    title: checks.title,\n    description: checks.description,\n    canonical: checks.canonical,\n    robots: checks.robots,\n    ogTitle: checks.ogTitle,\n    ogImage: checks.ogImage,\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        0
+      ],
+      "id": "8e445dc6-ba16-453a-a787-293f3a76bf5e",
+      "name": "판정 규칙 만들기"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.URL }}robots.txt",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "SEOCheckPractice/1.0 (job-portfolio project; contact: biniruu@gmail.com)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "0c31a864-1e1d-455f-aa04-22c6a216c5a8",
+      "name": "사이트맵·robots.txt 점검 1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = String($json.data || $json.body || \"\");\n\n// 정상 robots.txt는 텍스트, 접근 실패 시 보통 HTML 에러 페이지가 돌아온다\nconst looksLikeRobotsTxt = body.trim().length > 0 && !/^\\s*<!doctype html/i.test(body);\n\nconst robotsCheck = {\n  robotsTxt_status: looksLikeRobotsTxt ? \"OK: 접근 가능\" : \"문제: robots.txt 접근 불가 또는 형식 이상\",\n  robotsTxt_sitemap: /Sitemap:/i.test(body) ? \"OK: Sitemap 선언 있음\" : \"경고: Sitemap 선언 없음\",\n};\n\nconst prev = $('판정 규칙 만들기').item.json;\n\nreturn {\n  json: {\n    ...prev,\n    ...robotsCheck,\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "e4a13ec1-90db-4b93-a6fe-1ea398cef54b",
+      "name": "사이트맵·robots.txt 점검 2"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "26c13bc5-1ca1-4898-ae1f-b9e435dc6b04",
+      "name": "엑셀 리포트 생성"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "96293ade-5733-4acb-b9c5-ab76dac46cfc",
+      "name": "자동 실행"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/files/seo_report_{{ $now.format('yyyy-MM-dd') }}.xlsx",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        0
+      ],
+      "id": "a1b2c3d4-0000-4000-9000-95e9c1a90001",
+      "name": "리포트 파일 저장"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        176
+      ],
+      "id": "b7f3e2d1-1111-4111-9111-95e9c1a90002",
+      "name": "CLI 실행 트리거"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "점검할 URL 목록": {
+      "main": [
+        [
+          {
+            "node": "HTML 크롤링",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML 크롤링": {
+      "main": [
+        [
+          {
+            "node": "메타태그 추출",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "메타태그 추출": {
+      "main": [
+        [
+          {
+            "node": "판정 규칙 만들기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "판정 규칙 만들기": {
+      "main": [
+        [
+          {
+            "node": "사이트맵·robots.txt 점검 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "사이트맵·robots.txt 점검 1": {
+      "main": [
+        [
+          {
+            "node": "사이트맵·robots.txt 점검 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "사이트맵·robots.txt 점검 2": {
+      "main": [
+        [
+          {
+            "node": "엑셀 리포트 생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "자동 실행": {
+      "main": [
+        [
+          {
+            "node": "점검할 URL 목록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "엑셀 리포트 생성": {
+      "main": [
+        [
+          {
+            "node": "리포트 파일 저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CLI 실행 트리거": {
+      "main": [
+        [
+          {
+            "node": "점검할 URL 목록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "379da056-af32-4364-9ed3-4ab52429a530",
+  "meta": {
+    "instanceId": "3f4a0a04ae7067508a48fc5c83943474f688532779fa66c865492999482595f5"
+  },
+  "id": "JfOI0s2li1DEmteY",
+  "tags": []
+}
