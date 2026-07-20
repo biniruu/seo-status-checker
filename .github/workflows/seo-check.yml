@@ -1,0 +1,59 @@
+name: SEO Status Check
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # 매주 월요일 00:00 UTC = 09:00 KST
+  workflow_dispatch: # Actions 탭에서 수동 실행
+
+jobs:
+  seo-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 리포트 출력 폴더 준비
+        run: |
+          mkdir -p output
+          chmod 777 output
+
+      - name: n8n 워크플로우 실행 (Docker)
+        run: |
+          docker run --rm \
+            --entrypoint /bin/sh \
+            -e N8N_RESTRICT_FILE_ACCESS_TO=/files \
+            -e N8N_DIAGNOSTICS_ENABLED=false \
+            -e GENERIC_TIMEZONE=Asia/Seoul \
+            -e TZ=Asia/Seoul \
+            -v "$PWD/workflow:/workflow:ro" \
+            -v "$PWD/output:/files" \
+            n8nio/n8n:latest \
+            -c "n8n import:workflow --input=/workflow/seo-status-checker.json && n8n execute --id=JfOI0s2li1DEmteY"
+
+      - name: 리포트 생성 확인
+        run: ls -lh output/
+
+      - name: 리포트를 실행 기록에 보관 (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-report
+          path: output/*.xlsx
+          if-no-files-found: error
+
+      - name: 리포트 이메일 발송
+        uses: dawidd6/action-send-mail@v9
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "[SEO 자동 점검] 주간 리포트"
+          to: ${{ secrets.MAIL_TO }}
+          from: "SEO Status Checker <${{ secrets.MAIL_USERNAME }}>"
+          body: |
+            SEO 상태 자동 점검 워크플로우 실행이 완료되었습니다.
+            판정 결과 엑셀 리포트를 첨부합니다.
+
+            실행 기록: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          attachments: output/*.xlsx
